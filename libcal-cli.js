@@ -123,7 +123,7 @@ const HEADERS = {
     if (!(groupSize > 1)) {
       await book(seat,day,profile);
     } else {
-      await book_group(seat, day, groupSize);
+      await book_group(seat, day, groupSize, profile);
     }
     try {
       saveProfile(profile);
