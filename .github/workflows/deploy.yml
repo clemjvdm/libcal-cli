@@ -13,7 +13,7 @@ jobs:
           node-version: 18
       
       - run: npm install -g pkg
-      - run: pkg libcal-cli.js --targets node20-linux-x64,node20-macos-x64,node20-win-x64 --output libcal-cli
+      - run: pkg libcal-cli.js --targets node18-linux-x64,node18-macos-x64,node18-win-x64 --output libcal-cli
       - run: tar -czvf libcal-cli-linux.tar.gz libcal-cli-linux
       - run: tar -czvf libcal-cli-macos.tar.gz libcal-cli-macos
 
