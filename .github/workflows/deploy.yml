@@ -17,8 +17,7 @@ jobs:
       - run: tar -czvf libcal-cli-linux.tar.gz libcal-cli-linux
       - run: tar -czvf libcal-cli-macos.tar.gz libcal-cli-macos
 
-      - uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - uses: softprops/action-gh-release@v2
         with:
           files: |
             libcal-cli-linux.tar.gz
