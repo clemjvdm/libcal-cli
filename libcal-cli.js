@@ -48,7 +48,7 @@ const MIN_DURATION = 2 * 60 * 60 * 1000;
 const EMAIL_BASE = '@student.rug.nl'
 
 /*
-  * headers required for POST request
+  * headers required for POST requests to libcal
 */
 const HEADERS = {
       'User-Agent': 'Mozilla/5.0 ...',
@@ -62,17 +62,10 @@ const HEADERS = {
       'Sec-GPC': '1'
 };
 
-const Errors = {
-  FETCH_FAILED: "Unable to fetch data.",
-  UNEXPECTED_RESPONSE: "Unexpected response",
-  UNKNOWN: "An unknown error occurred.",
-};
-
 /*
-  * In this first section we evaluate the arguments in order to call the
-  * appropriate 'book' or 'checkin' function
+  * First section deals with inputting arguments and making the
+  * appropriate function calls.
 */
-
 
 (async () => {
   const args = process.argv.slice(2); // skip node and script path
@@ -83,15 +76,19 @@ const Errors = {
 
   const command = args[0];
 
+  /*
+    * Book command
+  */
   if (command === 'book') {
     if (args.length < 2) {
       showUsage();
     }
 
     const seat = args[1];
-    let day = 0;
-    let groupSize = 1;
+    let day = 0; // default day (+0)
+    let groupSize = 1; // default group size
 
+    // parse optional arguments
     for (let i = 2; i < args.length; i++) {
       const arg = args[i];
       if (arg.startsWith('--day=+')) {
@@ -114,6 +111,7 @@ const Errors = {
       }
     }
 
+    // try to make booking
     let profile;
     try { profile=loadProfile(); } catch (e) { console.log(e.message) };
     if (!(profile.email && profile.fname && profile.lname && profile.phone && profile.snum)) {
@@ -121,7 +119,7 @@ const Errors = {
       console.log("Run `libcal-cli profile` to view which attributes are missing");
       showUsage();
     }
-    if (!(profile.mod)) { profile.mod = 0; }
+    if (!(profile.mod)) { profile.mod = 0; } // profile.mod is not initialized by user
     if (!(groupSize > 1)) {
       await book(seat,day,profile);
     } else {
@@ -134,6 +132,9 @@ const Errors = {
       console.log("This may result in errors when trying to make more bookings, to mitigate these cancel current booking(s).");
     }
 
+  /*
+     * Checkin command
+  */
   } else if (command === 'checkin') {
     if (args.length !== 2) {
       console.error('Error: "checkin" requires a <code> argument.');
@@ -144,6 +145,12 @@ const Errors = {
     console.log('Parsed "checkin" command:');
     console.log(`  Code: ${code}`);
 
+    // TODO: make checkin command
+
+
+  /*
+     * Profile command
+  */
   } else if (command === 'profile') {
     let profile;
     try {
@@ -158,6 +165,8 @@ const Errors = {
       console.log("email: ", profile.email);
       console.log("student number: ", profile.snum);
     }
+
+    // parse all optional arguments
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg.startsWith('--email=')) {
@@ -201,11 +210,12 @@ const Errors = {
     console.error(`Unknown command: ${command}`);
     showUsage();
   }
-
-
 })();
 
 
+/*
+  * Show usage of libcal-cli and exit
+*/
 function showUsage() {
   console.log(`
 Usage:
@@ -217,18 +227,20 @@ Usage:
 }
 
 /*
-  * this section defines the book and checkin functions, which use
-  * other functions defined later which handle the interaction with libcal
+  * this section defines the functions used for booking and checking in, they use
+  * other functions defined later which handle the interaction with libcal.
 */
 
-
+/*
+  * book a single seat
+*/
 async function book(seat, days, profile) {
   const date = new Date();
   date.setDate(date.getDate() + days);
 
   let seats = await getSeats(date);
   seats = seats.filter(s => s.title.startsWith(seat));
-  if (seats.length==0) {
+  if (seats.length<=0) {
     console.log("No seat matching the criteria was found.")
     return
   }
@@ -237,10 +249,14 @@ async function book(seat, days, profile) {
     s.duration = duration(s);
   });
 
-  seats = seats.sort((a, b) => {
-    return b.duration - a.duration;
-  })
-  if (seats.length == 0 || seats[0].duration < MIN_DURATION) {
+  let best_seat = seats[0];
+  for (const seat of seats) {
+    if (seat.duration > best_seat.duration) {
+      best_seat = seat;
+    }
+  }
+
+  if (best_seat.duration < MIN_DURATION) {
     console.log("No available seat matching the criteria was found");
   } else {
     let b;
@@ -256,7 +272,9 @@ async function book(seat, days, profile) {
   }
 }
 
-
+/*
+  * book adjacent seats
+*/
 async function book_group(seat, days, group, profile) {
   const date = new Date();
   date.setDate(date.getDate() + days);
@@ -271,6 +289,8 @@ async function book_group(seat, days, group, profile) {
     s.duration = duration(s);
   });
 
+  // find first #group of adjacent seat satisfying minimum booking duration
+  // and store last value in k
   let k = -1;
   let done = 0;
   while (done != group && k < seats.length) {
@@ -287,11 +307,14 @@ async function book_group(seat, days, group, profile) {
     return;
   }
 
+  // calculate mean booking duration for selected k
   let prev = 0;
   for (let i=k-group+1; i<=k; i++) {
     prev += seats[i].duration/group;
   }
 
+  // sliding window going forward to find group of adjacent seats
+  // with highest mean booking duration
   let best = prev;
   let best_i = k;
   for (let i = k+1; i<seats.length; i++) {
@@ -315,6 +338,9 @@ async function book_group(seat, days, group, profile) {
   }
 }
 
+/*
+  * Get duration of a booking
+*/
 function duration(seat) {
   const start = new Date(seat.availabilities?.[0]?.[0]);
   if (!start) { return 0 }
@@ -322,6 +348,9 @@ function duration(seat) {
   return end - start;
 }
 
+/*
+  * Get configuration path where profile is stored
+*/
 function getConfigPath() {
   const platform = os.platform();
   let baseDir;
@@ -331,7 +360,6 @@ function getConfigPath() {
   } else if (platform === 'darwin') {
     baseDir = path.join(os.homedir(), 'Library', 'Application Support');
   } else {
-    // Assume Linux or other Unix
     baseDir = path.join(os.homedir(), '.config');
   }
 
@@ -363,9 +391,16 @@ function loadProfile() {
 
 
 /*
-  * this section has most of the complexity, as handles interactions with libcal
+  *
+  * this section stores functions which handle interaction with libcal
+  *
 */
 
+
+/*
+  * Get a list of existing seats from libcal
+  * TODO: Split up into get seats, and get availabilities
+*/
 async function getSeats(date) {
   const url = `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`;
   let htmlRes;
@@ -373,13 +408,11 @@ async function getSeats(date) {
   try {
     htmlRes = await fetch(url);
   } catch (e) {
-    // throw new Error(Errors.FETCH_FAILED, { cause: e });
     throw e;
   }
   try {
     html = await htmlRes.text();
   } catch (e) {
-    //throw new Error(Errors.UNEXPECTED_RESPONSE, {cause: e});
     throw e;
   }
   
@@ -404,7 +437,6 @@ async function getSeats(date) {
 
         return [seat.seatId, seat];
       } catch (e) {
-        //throw new Error(Errors.UNEXPECTED_RESPONSE, {cause: e});
         throw e;
       }
     })
@@ -452,6 +484,11 @@ async function getSeats(date) {
   return resultSeats;
 }
 
+/*
+  * Function handling the interaction with libcal in order to book a seat
+  * TODO: Split up function into it's different components 
+  * (define start of booking, define end of booking, confirm booking)
+*/
 async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
   let res1;
   try {
