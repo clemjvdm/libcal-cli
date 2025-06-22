@@ -179,7 +179,7 @@ const HEADERS = {
         console.log("Updated email address.");
       } else if (arg.startsWith('--phone=')) {
         const value = arg.split('=')[1];
-        if (!/^\d{9,10}$/.test(value)) {
+        if (!/^\d{7,11}$/.test(value)) {
           console.error(`Invalid --phone value: ${value}`);
           continue;
         }
