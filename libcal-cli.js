@@ -151,8 +151,6 @@ if (command === 'book') {
   try {
     profile = loadProfile();
   } catch (e) {
-    console.log("creating new profile");
-    console.log(e);
     profile = {};
   }
   if (args.length == 1) {
