@@ -56,7 +56,7 @@ const HEADERS = {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       'X-Requested-With': 'XMLHttpRequest',
       'Origin': 'https://libcal.rug.nl',
-      'Referer': 'https://libcal.rug.nl/r/new/availability?lid=1443&zone=0&gid=0&capacity=-1',
+      'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`,
       'Cookie': 'usernameType=student; ...',
       'DNT': '1',
       'Sec-GPC': '1'
@@ -73,7 +73,138 @@ const Errors = {
   * appropriate 'book' or 'checkin' function
 */
 
-const args = process.argv.slice(2); // skip node and script path
+
+(async () => {
+  const args = process.argv.slice(2); // skip node and script path
+
+  if (args.length === 0) {
+    showUsage();
+  }
+
+  const command = args[0];
+
+  if (command === 'book') {
+    if (args.length < 2) {
+      showUsage();
+    }
+
+    const seat = args[1];
+    let day = 0;
+    let groupSize = 1;
+
+    for (let i = 2; i < args.length; i++) {
+      const arg = args[i];
+      if (arg.startsWith('--day=+')) {
+        const value = arg.split('+')[1];
+        if (!/^[0-4]$/.test(value)) {
+          console.error(`Invalid --day value: ${value}`);
+          process.exit(1);
+        }
+        day = parseInt(value,10);
+      } else if (arg.startsWith('--group=')) {
+        const value = arg.split('=')[1];
+        if (!/^\d+$/.test(value)) {
+          console.error(`Invalid --group value: ${value}`);
+          process.exit(1);
+        }
+        groupSize = parseInt(value, 10);
+      } else {
+        console.error(`Unknown argument: ${arg}`);
+        showUsage();
+      }
+    }
+
+    let profile;
+    try { profile=loadProfile(); } catch (e) { console.log(e.message) };
+    if (!(profile.email && profile.fname && profile.lname && profile.phone && profile.snum)) {
+      console.log("Profile incomplete");
+      console.log("Run `libcal-cli profile` to view which attributes are missing");
+      showUsage();
+    }
+    if (!(profile.mod)) { profile.mod = 0; }
+    if (!(groupSize > 1)) {
+      await book(seat,day,profile);
+    } else {
+      await book_group(seat, day, groupSize);
+    }
+    try {
+      saveProfile(profile);
+    } catch (e) {
+      console.log("Failed to save profile after booking.");
+      console.log("This may result in errors when trying to make more bookings, to mitigate these cancel current booking(s).");
+    }
+
+  } else if (command === 'checkin') {
+    if (args.length !== 2) {
+      console.error('Error: "checkin" requires a <code> argument.');
+      showUsage();
+    }
+
+    const code = args[1];
+    console.log('Parsed "checkin" command:');
+    console.log(`  Code: ${code}`);
+
+  } else if (command === 'profile') {
+    let profile;
+    try {
+      profile = loadProfile();
+    } catch (e) {
+      profile = {};
+    }
+    if (args.length == 1) {
+      console.log("first name: ", profile.fname);
+      console.log("last name: ", profile.lname);
+      console.log("phone number: ", profile.phone);
+      console.log("email: ", profile.email);
+      console.log("student number: ", profile.snum);
+    }
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if (arg.startsWith('--email=')) {
+        const value = arg.split('=')[1];
+        if (!/^.+@student\.rug\.nl$/.test(value)) {
+          console.error(`Invalid --email value: ${value}`);
+          continue;
+        }
+        profile.email = value;
+        console.log("Updated email address.");
+      } else if (arg.startsWith('--phone=')) {
+        const value = arg.split('=')[1];
+        if (!/^\d{9,10}$/.test(value)) {
+          console.error(`Invalid --phone value: ${value}`);
+          continue;
+        }
+        profile.phone = value;
+        console.log("Updated phone number.");
+      } else if (arg.startsWith('--fname=')) {
+        const value = arg.split('=')[1];
+        profile.fname=value;
+        console.log("Updated first name.");
+      } else if (arg.startsWith('--lname=')) {
+        const value = arg.split('=')[1];
+        profile.lname=value;
+        console.log("Updated last name.");
+      } else if (arg.startsWith('--snum=')) {
+        const value = arg.split('=')[1];
+        if (!/^s\d{7}$/.test(value)) {
+          console.error(`Invalid --snum value: ${value}`);
+          continue;
+        }
+        console.log("Updating student number.");
+        profile.snum=value;
+      } else {
+        console.error(`Unknown argument: ${arg} ignored`);
+      }
+    }
+    saveProfile(profile);
+  } else {
+    console.error(`Unknown command: ${command}`);
+    showUsage();
+  }
+
+
+})();
+
 
 function showUsage() {
   console.log(`
@@ -83,126 +214,6 @@ Usage:
   libcal-cli profile [--fname=<first_name>] [--lname=<last_name>] [--phone=<phone_number>] [--email=<email>] [--snum=<student_number>]
   `);
   process.exit(1);
-}
-
-if (args.length === 0) {
-  showUsage();
-}
-
-const command = args[0];
-
-if (command === 'book') {
-  if (args.length < 2) {
-    showUsage();
-  }
-
-  const seat = args[1];
-  let day = 0;
-  let groupSize = 1;
-
-  for (let i = 2; i < args.length; i++) {
-    const arg = args[i];
-    if (arg.startsWith('--day=+')) {
-      const value = arg.split('+')[1];
-      if (!/^[0-4]$/.test(value)) {
-        console.error(`Invalid --day value: ${value}`);
-        process.exit(1);
-      }
-      day = parseInt(value,10);
-    } else if (arg.startsWith('--group=')) {
-      const value = arg.split('=')[1];
-      if (!/^\d+$/.test(value)) {
-        console.error(`Invalid --group value: ${value}`);
-        process.exit(1);
-      }
-      groupSize = parseInt(value, 10);
-    } else {
-      console.error(`Unknown argument: ${arg}`);
-      showUsage();
-    }
-  }
-
-  console.log(`Attempting to book ${seat}, in ${day} days for a group size of ${groupSize}`);
-  let profile;
-  try { profile=loadProfile(); } catch (e) { console.log(e.message) };
-  if (!(profile.email && profile.fname && profile.lname && profile.phone && profile.snum)) {
-    console.log("Profile incomplete");
-    console.log("Run `libcal-cli profile` to view which attributes are missing");
-    showUsage();
-  }
-  if (!(groupSize > 1)) {
-    book(seat,day,profile);
-  } else {
-    book_group(seat, day, groupSize);
-  }
-
-} else if (command === 'checkin') {
-  if (args.length !== 2) {
-    console.error('Error: "checkin" requires a <code> argument.');
-    showUsage();
-  }
-
-  const code = args[1];
-  console.log('Parsed "checkin" command:');
-  console.log(`  Code: ${code}`);
-
-} else if (command === 'profile') {
-  let profile;
-  try {
-    profile = loadProfile();
-  } catch (e) {
-    profile = {};
-  }
-  if (args.length == 1) {
-    console.log("first name: ", profile.fname);
-    console.log("last name: ", profile.lname);
-    console.log("phone number: ", profile.phone);
-    console.log("email: ", profile.email);
-    console.log("student number", profile.snum);
-  }
-  for (let i = 1; i < args.length; i++) {
-    const arg = args[i];
-    if (arg.startsWith('--email=')) {
-      const value = arg.split('=')[1];
-      if (!/^.+@student\.rug\.nl$/.test(value)) {
-        console.error(`Invalid --email value: ${value}`);
-        process.exit(1);
-      }
-      profile.email = value;
-      console.log("Updating email address.");
-    } else if (arg.startsWith('--phone=')) {
-      const value = arg.split('=')[1];
-      if (!/^\d{9,10}$/.test(value)) {
-        console.error(`Invalid --phone value: ${value}`);
-        process.exit(1);
-      }
-      profile.phone = value;
-      console.log("Updating phone number.");
-    } else if (arg.startsWith('--fname=')) {
-      const value = arg.split('=')[1];
-      profile.fname=value;
-      console.log("Updating first name.");
-    } else if (arg.startsWith('--lname=')) {
-      const value = arg.split('=')[1];
-      profile.lname=value;
-      console.log("Updating last name.");
-    } else if (arg.startsWith('--snum=')) {
-      const value = arg.split('=')[1];
-      if (!/^s\d{7}$/.test(value)) {
-        console.error(`Invalid --snum value: ${value}`);
-        process.exit(1);
-      }
-      console.log("Updating student number.");
-      profile.snum=value;
-    } else {
-      console.error(`Unknown argument: ${arg}`);
-      showUsage();
-    }
-  }
-  saveProfile(profile);
-} else {
-  console.error(`Unknown command: ${command}`);
-  showUsage();
 }
 
 /*
@@ -235,9 +246,11 @@ async function book(seat, days, profile) {
     let b;
     try { 
       const email_start = profile.email.split("@")[0];
-      b = await bookSeat(seats[0],email_start, '', profile.fname, profile.lname, profile.phone, profile.snum);
+      profile.mod++;
+      b = await bookSeat(seats[0],email_start, profile.mod, profile.fname, profile.lname, profile.phone, profile.snum);
     } catch (e) {
       console.log("Something went wrong: ", e);
+      return;
     }
     console.log(`Booked seat ${b.seat} from ${b.start} until ${b.end}.`);
   }
@@ -293,7 +306,8 @@ async function book_group(seat, days, group, profile) {
   const email_start = profile.email.split("@")[0];
   for (let i=best_i; i<group+best_i; i++) {
     try { 
-      const b = await bookSeat(seats[i],email_start, i, profile.fname, profile.lname, profile.phone, profile.snum);
+      profile.mod++;
+      const b = await bookSeat(seats[i],email_start, profile.mod, profile.fname, profile.lname, profile.phone, profile.snum);
       console.log(`Booked seat ${b.seat} from ${b.start} until ${b.end}.`);
     } catch (e) {
       console.log("Something went wrong: ", e);
@@ -547,10 +561,20 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
   let res;
   try { res = await fetch('https://libcal.rug.nl/ajax/space/book', {
     method: 'POST',
-    headers: HEADERS,
+    headers: {
+        'Accept': 'application/json',
+        'Origin': 'https://libcal.rug.nl',
+        'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`
+      },
     body: formData,
     credentials: 'include'
   }) } catch (e) { throw e; }
+
+  if (!res.ok) {
+    const rsss = await res.text()
+    console.log(rsss)
+    throw new Error("request rejected by server");
+  }
 
   return {
     seat: seat.title,
