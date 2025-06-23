@@ -1,8 +1,8 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-/* 
-  * the page size when getting seats from libcal. Higher value means we get more seats. 
+/*
+  * the page size when getting seats from libcal. Higher value means we get more seats.
   * 2000 means we get all the seats of the library (I think there's about 1700 seats)
 */
 const PAGESIZE = 2000;
@@ -51,15 +51,15 @@ const EMAIL_BASE = '@student.rug.nl'
   * headers required for POST requests to libcal
 */
 const HEADERS = {
-      'User-Agent': 'Mozilla/5.0 ...',
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Origin': 'https://libcal.rug.nl',
-      'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`,
-      'Cookie': 'usernameType=student; ...',
-      'DNT': '1',
-      'Sec-GPC': '1'
+  'User-Agent': 'Mozilla/5.0 ...',
+  'Accept': 'application/json, text/javascript, */*; q=0.01',
+  'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+  'X-Requested-With': 'XMLHttpRequest',
+  'Origin': 'https://libcal.rug.nl',
+  'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`,
+  'Cookie': 'usernameType=student; ...',
+  'DNT': '1',
+  'Sec-GPC': '1'
 };
 
 /*
@@ -132,9 +132,9 @@ const HEADERS = {
       console.log("This may result in errors when trying to make more bookings, to mitigate these cancel current booking(s).");
     }
 
-  /*
-     * Checkin command
-  */
+    /*
+       * Checkin command
+    */
   } else if (command === 'checkin') {
     if (args.length !== 2) {
       console.error('Error: "checkin" requires a <code> argument.');
@@ -146,11 +146,13 @@ const HEADERS = {
     console.log(`  Code: ${code}`);
 
     // TODO: make checkin command
+    // Added but not tested.
+    await checkin(code);
 
 
-  /*
-     * Profile command
-  */
+    /*
+       * Profile command
+    */
   } else if (command === 'profile') {
     let profile;
     try {
@@ -231,6 +233,7 @@ Usage:
   * other functions defined later which handle the interaction with libcal.
 */
 
+
 /*
   * book a single seat
 */
@@ -260,7 +263,7 @@ async function book(seat, days, profile) {
     console.log("No available seat matching the criteria was found");
   } else {
     let b;
-    try { 
+    try {
       const email_start = profile.email.split("@")[0];
       profile.mod++;
       b = await bookSeat(seats[0],email_start, profile.mod, profile.fname, profile.lname, profile.phone, profile.snum);
@@ -295,8 +298,8 @@ async function book_group(seat, days, group, profile) {
   let done = 0;
   while (done != group && k < seats.length) {
     k++;
-    if (seats[k].duration >= MIN_DURATION) { 
-      done++; 
+    if (seats[k].duration >= MIN_DURATION) {
+      done++;
     } else {
       done = 0;
     }
@@ -328,7 +331,7 @@ async function book_group(seat, days, group, profile) {
 
   const email_start = profile.email.split("@")[0];
   for (let i=best_i; i<group+best_i; i++) {
-    try { 
+    try {
       profile.mod++;
       const b = await bookSeat(seats[i],email_start, profile.mod, profile.fname, profile.lname, profile.phone, profile.snum);
       console.log(`Booked seat ${b.seat} from ${b.start} until ${b.end}.`);
@@ -415,31 +418,31 @@ async function getSeats(date) {
   } catch (e) {
     throw e;
   }
-  
+
   const endDate = new Date(date);
   endDate.setDate(endDate.getDate() + 1);
 
   const htmlSeats = [...html.matchAll(/resources\.push\(\s*({[\s\S]*?})\s*\);/g)]; // get json structures representing seats
   const seats = Object.fromEntries( // build object with 'seatId : seatObj'
-    htmlSeats.map(htmlSeat => {
-      try {
-        // Convert object string to valid JSON
-        let objString = htmlSeat[1]
-          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g, '"$2":')
-          .replace(/'/g, '"')
-          .replace(/,\s*}/g, '}')
-          .replace(/,\s*]/g, ']');
+      htmlSeats.map(htmlSeat => {
+        try {
+          // Convert object string to valid JSON
+          let objString = htmlSeat[1]
+              .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g, '"$2":')
+              .replace(/'/g, '"')
+              .replace(/,\s*}/g, '}')
+              .replace(/,\s*]/g, ']');
 
-        const seat = JSON.parse(objString);
-        seat.availabilities = [];
-        seat.startDate = date.toISOString().split('T')[0];
-        seat.endDate = endDate.toISOString().split('T')[0];
+          const seat = JSON.parse(objString);
+          seat.availabilities = [];
+          seat.startDate = date.toISOString().split('T')[0];
+          seat.endDate = endDate.toISOString().split('T')[0];
 
-        return [seat.seatId, seat];
-      } catch (e) {
-        throw e;
-      }
-    })
+          return [seat.seatId, seat];
+        } catch (e) {
+          throw e;
+        }
+      })
   );
 
   // form data for second request (POST), which gathers availabilities/checksums
@@ -478,15 +481,15 @@ async function getSeats(date) {
 
   // get only available seats
   resultSeats = resultSeats.filter(seat => {
-      return !(seat.availabilities.length == 0);
+    return !(seat.availabilities.length == 0);
   });
-  
+
   return resultSeats;
 }
 
 /*
   * Function handling the interaction with libcal in order to book a seat
-  * TODO: Split up function into it's different components 
+  * TODO: Split up function into it's different components
   * (define start of booking, define end of booking, confirm booking)
 */
 async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
@@ -511,7 +514,7 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
   } catch (e) {
     throw e;
   }
-  
+
   let res1JSON;
   try {
     res1JSON = await res1.json();
@@ -524,25 +527,25 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
   var booking = res1JSON.bookings[0];
 
   const res2 = await fetch('https://libcal.rug.nl/spaces/availability/booking/add', {
-   method: 'POST',
-   headers: HEADERS,
-   body: new URLSearchParams({
-     'update[id]': booking.id.toString(),
-     'update[checksum]': booking.optionChecksums[booking.optionChecksums.length-1],
-     'update[end]': booking.options[booking.options.length-1], // get longest booking possible
-     'lid': booking.lid.toString(),
-     'gid': GID.toString(),
-     'start': seat.startDate,
-     'end': seat.endDate,
-     'bookings[0][id]': booking.id.toString(),
-     'bookings[0][eid]': booking.eid.toString(),
-     'bookings[0][seat_id]': booking.seat_id.toString(),
-     'bookings[0][gid]': booking.gid.toString(),
-     'bookings[0][lid]': booking.lid.toString(),
-     'bookings[0][start]': booking.start,
-     'bookings[0][end]': booking.end,
-     'bookings[0][checksum]': booking.checksum
-   })
+    method: 'POST',
+    headers: HEADERS,
+    body: new URLSearchParams({
+      'update[id]': booking.id.toString(),
+      'update[checksum]': booking.optionChecksums[booking.optionChecksums.length-1],
+      'update[end]': booking.options[booking.options.length-1], // get longest booking possible
+      'lid': booking.lid.toString(),
+      'gid': GID.toString(),
+      'start': seat.startDate,
+      'end': seat.endDate,
+      'bookings[0][id]': booking.id.toString(),
+      'bookings[0][eid]': booking.eid.toString(),
+      'bookings[0][seat_id]': booking.seat_id.toString(),
+      'bookings[0][gid]': booking.gid.toString(),
+      'bookings[0][lid]': booking.lid.toString(),
+      'bookings[0][start]': booking.start,
+      'bookings[0][end]': booking.end,
+      'bookings[0][checksum]': booking.checksum
+    })
   })
 
   let res2JSON;
@@ -599,10 +602,10 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
   try { res = await fetch('https://libcal.rug.nl/ajax/space/book', {
     method: 'POST',
     headers: {
-        'Accept': 'application/json',
-        'Origin': 'https://libcal.rug.nl',
-        'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`
-      },
+      'Accept': 'application/json',
+      'Origin': 'https://libcal.rug.nl',
+      'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`
+    },
     body: formData,
     credentials: 'include'
   }) } catch (e) { throw e; }
@@ -617,5 +620,30 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
     seat: seat.title,
     start: booking.start,
     end: booking.end,
+  }
+}
+
+async function checkin(checkin) {
+  console.log(checkin)
+  const res = await fetch('https://libcal.rug.nl/r/checkin', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: HEADERS,
+    body: new URLSearchParams({
+      latitude: '',
+      longitude: '',
+      email: '',
+      code: checkin,
+    }).toString()
+  })
+  try {
+    const data = await res.json();
+    if (data.isCheckIn) {
+      console.log("Succsesfully checked in with code: ", checkin)
+    } else {
+      console.log("Already checked in with code: ", checkin)
+    }
+  } catch (error) {
+    console.error("Failed to check in with code", checkin)
   }
 }
