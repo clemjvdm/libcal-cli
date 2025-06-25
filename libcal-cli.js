@@ -1,71 +1,71 @@
-const os = require('os');
-const path = require('path');
-const fs = require('fs');
-/* 
-  * the page size when getting seats from libcal. Higher value means we get more seats. 
-  * 2000 means we get all the seats of the library (I think there's about 1700 seats)
-*/
+const os = require("os");
+const path = require("path");
+const fs = require("fs");
+/*
+ * the page size when getting seats from libcal. Higher value means we get more seats.
+ * 2000 means we get all the seats of the library (I think there's about 1700 seats)
+ */
 const PAGESIZE = 2000;
 
 /*
-  * page index starting at 0 to not miss any seats
-*/
+ * page index starting at 0 to not miss any seats
+ */
 const PAGEINDEX = 0;
 
 /*
-  * this is the location id of the library (I think exclusively)
-*/
+ * this is the location id of the library (I think exclusively)
+ */
 const LID = 1443;
 
 /*
-  * group id of 0 means we target all seats
-*/
+ * group id of 0 means we target all seats
+ */
 const GID = 0;
 
 /*
-  * eid of -1 means we target all seats
-*/
+ * eid of -1 means we target all seats
+ */
 const EID = -1;
 
 /*
-  * zone of 0 means we target all floors
-*/
+ * zone of 0 means we target all floors
+ */
 const ZONE = 0;
 
 /*
-  * no clue why, but it works
-*/
+ * no clue why, but it works
+ */
 const CAPACITY = -1;
 
 /*
-  * minimum duration required to consider a booking
-*/
+ * minimum duration required to consider a booking
+ */
 const MIN_DURATION = 2 * 60 * 60 * 1000;
 
 /*
-  * rug email extension
-*/
-const EMAIL_BASE = '@student.rug.nl'
+ * rug email extension
+ */
+const EMAIL_BASE = "@student.rug.nl";
 
 /*
-  * headers required for POST requests to libcal
-*/
+ * headers required for POST requests to libcal
+ */
 const HEADERS = {
-      'User-Agent': 'Mozilla/5.0 ...',
-      'Accept': 'application/json, text/javascript, */*; q=0.01',
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Origin': 'https://libcal.rug.nl',
-      'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`,
-      'Cookie': 'usernameType=student; ...',
-      'DNT': '1',
-      'Sec-GPC': '1'
+  "User-Agent": "Mozilla/5.0 ...",
+  Accept: "application/json, text/javascript, */*; q=0.01",
+  "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+  "X-Requested-With": "XMLHttpRequest",
+  Origin: "https://libcal.rug.nl",
+  Referer: `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`,
+  Cookie: "usernameType=student; ...",
+  DNT: "1",
+  "Sec-GPC": "1",
 };
 
 /*
-  * First section deals with inputting arguments and making the
-  * appropriate function calls.
-*/
+ * First section deals with inputting arguments and making the
+ * appropriate function calls.
+ */
 
 (async () => {
   const args = process.argv.slice(2); // skip node and script path
@@ -77,9 +77,9 @@ const HEADERS = {
   const command = args[0];
 
   /*
-    * Book command
-  */
-  if (command === 'book') {
+   * Book command
+   */
+  if (command === "book") {
     if (args.length < 2) {
       showUsage();
     }
@@ -91,15 +91,15 @@ const HEADERS = {
     // parse optional arguments
     for (let i = 2; i < args.length; i++) {
       const arg = args[i];
-      if (arg.startsWith('--day=+')) {
-        const value = arg.split('+')[1];
+      if (arg.startsWith("--day=+")) {
+        const value = arg.split("+")[1];
         if (!/^[0-4]$/.test(value)) {
           console.error(`Invalid --day value: ${value}`);
           process.exit(1);
         }
-        day = parseInt(value,10);
-      } else if (arg.startsWith('--group=')) {
-        const value = arg.split('=')[1];
+        day = parseInt(value, 10);
+      } else if (arg.startsWith("--group=")) {
+        const value = arg.split("=")[1];
         if (!/^\d+$/.test(value)) {
           console.error(`Invalid --group value: ${value}`);
           process.exit(1);
@@ -113,15 +113,31 @@ const HEADERS = {
 
     // try to make booking
     let profile;
-    try { profile=loadProfile(); } catch (e) { console.log(e.message) };
-    if (!(profile.email && profile.fname && profile.lname && profile.phone && profile.snum)) {
+    try {
+      profile = loadProfile();
+    } catch (e) {
+      console.log(e.message);
+    }
+    if (
+      !(
+        profile.email &&
+        profile.fname &&
+        profile.lname &&
+        profile.phone &&
+        profile.snum
+      )
+    ) {
       console.log("Profile incomplete");
-      console.log("Run `libcal-cli profile` to view which attributes are missing");
+      console.log(
+        "Run `libcal-cli profile` to view which attributes are missing",
+      );
       showUsage();
     }
-    if (!(profile.mod)) { profile.mod = 0; } // profile.mod is not initialized by user
+    if (!profile.mod) {
+      profile.mod = 0;
+    } // profile.mod is not initialized by user
     if (!(groupSize > 1)) {
-      await book(seat,day,profile);
+      await book(seat, day, profile);
     } else {
       await book_group(seat, day, groupSize, profile);
     }
@@ -129,13 +145,15 @@ const HEADERS = {
       saveProfile(profile);
     } catch (e) {
       console.log("Failed to save profile after booking.");
-      console.log("This may result in errors when trying to make more bookings, to mitigate these cancel current booking(s).");
+      console.log(
+        "This may result in errors when trying to make more bookings, to mitigate these cancel current booking(s).",
+      );
     }
 
-  /*
+    /*
      * Checkin command
-  */
-  } else if (command === 'checkin') {
+     */
+  } else if (command === "checkin") {
     if (args.length !== 2) {
       console.error('Error: "checkin" requires a <code> argument.');
       showUsage();
@@ -147,11 +165,10 @@ const HEADERS = {
 
     // TODO: make checkin command
 
-
-  /*
+    /*
      * Profile command
-  */
-  } else if (command === 'profile') {
+     */
+  } else if (command === "profile") {
     let profile;
     try {
       profile = loadProfile();
@@ -169,38 +186,38 @@ const HEADERS = {
     // parse all optional arguments
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
-      if (arg.startsWith('--email=')) {
-        const value = arg.split('=')[1];
+      if (arg.startsWith("--email=")) {
+        const value = arg.split("=")[1];
         if (!/^.+@student\.rug\.nl$/.test(value)) {
           console.error(`Invalid --email value: ${value}`);
           continue;
         }
         profile.email = value;
         console.log("Updated email address.");
-      } else if (arg.startsWith('--phone=')) {
-        const value = arg.split('=')[1];
+      } else if (arg.startsWith("--phone=")) {
+        const value = arg.split("=")[1];
         if (!/^\d{7,11}$/.test(value)) {
           console.error(`Invalid --phone value: ${value}`);
           continue;
         }
         profile.phone = value;
         console.log("Updated phone number.");
-      } else if (arg.startsWith('--fname=')) {
-        const value = arg.split('=')[1];
-        profile.fname=value;
+      } else if (arg.startsWith("--fname=")) {
+        const value = arg.split("=")[1];
+        profile.fname = value;
         console.log("Updated first name.");
-      } else if (arg.startsWith('--lname=')) {
-        const value = arg.split('=')[1];
-        profile.lname=value;
+      } else if (arg.startsWith("--lname=")) {
+        const value = arg.split("=")[1];
+        profile.lname = value;
         console.log("Updated last name.");
-      } else if (arg.startsWith('--snum=')) {
-        const value = arg.split('=')[1];
+      } else if (arg.startsWith("--snum=")) {
+        const value = arg.split("=")[1];
         if (!/^s\d{7}$/.test(value)) {
           console.error(`Invalid --snum value: ${value}`);
           continue;
         }
         console.log("Updating student number.");
-        profile.snum=value;
+        profile.snum = value;
       } else {
         console.error(`Unknown argument: ${arg} ignored`);
       }
@@ -212,10 +229,9 @@ const HEADERS = {
   }
 })();
 
-
 /*
-  * Show usage of libcal-cli and exit
-*/
+ * Show usage of libcal-cli and exit
+ */
 function showUsage() {
   console.log(`
 Usage:
@@ -227,25 +243,25 @@ Usage:
 }
 
 /*
-  * this section defines the functions used for booking and checking in, they use
-  * other functions defined later which handle the interaction with libcal.
-*/
+ * this section defines the functions used for booking and checking in, they use
+ * other functions defined later which handle the interaction with libcal.
+ */
 
 /*
-  * book a single seat
-*/
+ * book a single seat
+ */
 async function book(seat, days, profile) {
   const date = new Date();
   date.setDate(date.getDate() + days);
 
   let seats = await getSeats(date);
-  seats = seats.filter(s => s.title.startsWith(seat));
-  if (seats.length<=0) {
-    console.log("No seat matching the criteria was found.")
-    return
+  seats = seats.filter((s) => s.title.startsWith(seat));
+  if (seats.length <= 0) {
+    console.log("No seat matching the criteria was found.");
+    return;
   }
 
-  seats.forEach(s => {
+  seats.forEach((s) => {
     s.duration = duration(s);
   });
 
@@ -260,10 +276,18 @@ async function book(seat, days, profile) {
     console.log("No available seat matching the criteria was found");
   } else {
     let b;
-    try { 
+    try {
       const email_start = profile.email.split("@")[0];
       profile.mod++;
-      b = await bookSeat(seats[0],email_start, profile.mod, profile.fname, profile.lname, profile.phone, profile.snum);
+      b = await bookSeat(
+        seats[0],
+        email_start,
+        profile.mod,
+        profile.fname,
+        profile.lname,
+        profile.phone,
+        profile.snum,
+      );
     } catch (e) {
       console.log("Something went wrong: ", e);
       return;
@@ -273,19 +297,19 @@ async function book(seat, days, profile) {
 }
 
 /*
-  * book adjacent seats
-*/
+ * book adjacent seats
+ */
 async function book_group(seat, days, group, profile) {
   const date = new Date();
   date.setDate(date.getDate() + days);
 
   let seats = await getSeats(date);
-  seats = seats.filter(s => s.title.startsWith(seat));
+  seats = seats.filter((s) => s.title.startsWith(seat));
   if (seats.length < group) {
     console.log("Not enough seats matching the criteria were found");
   }
 
-  seats.forEach(s => {
+  seats.forEach((s) => {
     s.duration = duration(s);
   });
 
@@ -295,8 +319,8 @@ async function book_group(seat, days, group, profile) {
   let done = 0;
   while (done != group && k < seats.length) {
     k++;
-    if (seats[k].duration >= MIN_DURATION) { 
-      done++; 
+    if (seats[k].duration >= MIN_DURATION) {
+      done++;
     } else {
       done = 0;
     }
@@ -309,17 +333,20 @@ async function book_group(seat, days, group, profile) {
 
   // calculate mean booking duration for selected k
   let prev = 0;
-  for (let i=k-group+1; i<=k; i++) {
-    prev += seats[i].duration/group;
+  for (let i = k - group + 1; i <= k; i++) {
+    prev += seats[i].duration / group;
   }
 
   // sliding window going forward to find group of adjacent seats
   // with highest mean booking duration
   let best = prev;
   let best_i = k;
-  for (let i = k+1; i<seats.length; i++) {
-    if (!seats[i].duration >= MIN_DURATION) { continue; }
-    const val = prev - seats[i-group].duration/group + seats[i].duration/group;
+  for (let i = k + 1; i < seats.length; i++) {
+    if (!seats[i].duration >= MIN_DURATION) {
+      continue;
+    }
+    const val =
+      prev - seats[i - group].duration / group + seats[i].duration / group;
     if (val >= best) {
       best_i = i;
       best = val;
@@ -327,10 +354,18 @@ async function book_group(seat, days, group, profile) {
   }
 
   const email_start = profile.email.split("@")[0];
-  for (let i=best_i; i<group+best_i; i++) {
-    try { 
+  for (let i = best_i; i < group + best_i; i++) {
+    try {
       profile.mod++;
-      const b = await bookSeat(seats[i],email_start, profile.mod, profile.fname, profile.lname, profile.phone, profile.snum);
+      const b = await bookSeat(
+        seats[i],
+        email_start,
+        profile.mod,
+        profile.fname,
+        profile.lname,
+        profile.phone,
+        profile.snum,
+      );
       console.log(`Booked seat ${b.seat} from ${b.start} until ${b.end}.`);
     } catch (e) {
       console.log("Something went wrong: ", e);
@@ -339,32 +374,36 @@ async function book_group(seat, days, group, profile) {
 }
 
 /*
-  * Get duration of a booking
-*/
+ * Get duration of a booking
+ */
 function duration(seat) {
   const start = new Date(seat.availabilities?.[0]?.[0]);
-  if (!start) { return 0 }
-  const end = new Date(seat.availabilities?.[seat.availabilities.length-1]?.[1] ?? start);
+  if (!start) {
+    return 0;
+  }
+  const end = new Date(
+    seat.availabilities?.[seat.availabilities.length - 1]?.[1] ?? start,
+  );
   return end - start;
 }
 
 /*
-  * Get configuration path where profile is stored
-*/
+ * Get configuration path where profile is stored
+ */
 function getConfigPath() {
   const platform = os.platform();
   let baseDir;
 
-  if (platform === 'win32') {
+  if (platform === "win32") {
     baseDir = process.env.APPDATA;
-  } else if (platform === 'darwin') {
-    baseDir = path.join(os.homedir(), 'Library', 'Application Support');
+  } else if (platform === "darwin") {
+    baseDir = path.join(os.homedir(), "Library", "Application Support");
   } else {
-    baseDir = path.join(os.homedir(), '.config');
+    baseDir = path.join(os.homedir(), ".config");
   }
 
-  const configDir = path.join(baseDir, 'libcal-cli');
-  const configFile = path.join(configDir, 'profile.json');
+  const configDir = path.join(baseDir, "libcal-cli");
+  const configFile = path.join(configDir, "profile.json");
 
   return { configDir, configFile };
 }
@@ -383,24 +422,24 @@ function loadProfile() {
   const { configFile } = getConfigPath();
 
   if (!fs.existsSync(configFile)) {
-    throw new Error('Profile not found. Please run `libcal-cli profile --email=<email> --phone=<phone> --snum<student_number>` to set it up.');
+    throw new Error(
+      "Profile not found. Please run `libcal-cli profile --email=<email> --phone=<phone> --snum<student_number>` to set it up.",
+    );
   }
 
-  return JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+  return JSON.parse(fs.readFileSync(configFile, "utf-8"));
 }
 
+/*
+ *
+ * this section stores functions which handle interaction with libcal
+ *
+ */
 
 /*
-  *
-  * this section stores functions which handle interaction with libcal
-  *
-*/
-
-
-/*
-  * Get a list of existing seats from libcal
-  * TODO: Split up into get seats, and get availabilities
-*/
+ * Get a list of existing seats from libcal
+ * TODO: Split up into get seats, and get availabilities
+ */
 async function getSeats(date) {
   const url = `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`;
   let htmlRes;
@@ -415,31 +454,34 @@ async function getSeats(date) {
   } catch (e) {
     throw e;
   }
-  
+
   const endDate = new Date(date);
   endDate.setDate(endDate.getDate() + 1);
 
-  const htmlSeats = [...html.matchAll(/resources\.push\(\s*({[\s\S]*?})\s*\);/g)]; // get json structures representing seats
-  const seats = Object.fromEntries( // build object with 'seatId : seatObj'
-    htmlSeats.map(htmlSeat => {
+  const htmlSeats = [
+    ...html.matchAll(/resources\.push\(\s*({[\s\S]*?})\s*\);/g),
+  ]; // get json structures representing seats
+  const seats = Object.fromEntries(
+    // build object with 'seatId : seatObj'
+    htmlSeats.map((htmlSeat) => {
       try {
         // Convert object string to valid JSON
         let objString = htmlSeat[1]
           .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g, '"$2":')
           .replace(/'/g, '"')
-          .replace(/,\s*}/g, '}')
-          .replace(/,\s*]/g, ']');
+          .replace(/,\s*}/g, "}")
+          .replace(/,\s*]/g, "]");
 
         const seat = JSON.parse(objString);
         seat.availabilities = [];
-        seat.startDate = date.toISOString().split('T')[0];
-        seat.endDate = endDate.toISOString().split('T')[0];
+        seat.startDate = date.toISOString().split("T")[0];
+        seat.endDate = endDate.toISOString().split("T")[0];
 
         return [seat.seatId, seat];
       } catch (e) {
         throw e;
       }
-    })
+    }),
   );
 
   // form data for second request (POST), which gathers availabilities/checksums
@@ -447,123 +489,150 @@ async function getSeats(date) {
     lid: LID.toString(),
     gid: GID.toString(),
     eid: EID.toString(),
-    seat: '1',
-    seatId: '0',
+    seat: "1",
+    seatId: "0",
     zone: ZONE.toString(),
-    start: date.toISOString().split('T')[0],  // start date to be changed
-    end: endDate.toISOString().split('T')[0],  // end date to be changed (start date +1)
+    start: date.toISOString().split("T")[0], // start date to be changed
+    end: endDate.toISOString().split("T")[0], // end date to be changed (start date +1)
     pageIndex: PAGEINDEX.toString(),
-    pageSize: PAGESIZE.toString(),  // this needs to be set to like 2000 in the final version, to get all the checksums
+    pageSize: PAGESIZE.toString(), // this needs to be set to like 2000 in the final version, to get all the checksums
   });
 
   // make second request
-  const addRes = await fetch('https://libcal.rug.nl/spaces/availability/grid', {
-    method: 'POST',
+  const addRes = await fetch("https://libcal.rug.nl/spaces/availability/grid", {
+    method: "POST",
     headers: HEADERS,
     body: formData.toString(),
-  })
+  });
 
   // parse JSON
   const addResJSON = await addRes.json();
 
   // attach availabilities and checksums to seat objects
   const slots = Object.values(addResJSON.slots);
-  slots.forEach(slot => {
-    if (!slot.className){
-      seats[slot.itemId].availabilities.push([slot.start, slot.end, slot.checksum]);
+  slots.forEach((slot) => {
+    if (!slot.className) {
+      seats[slot.itemId].availabilities.push([
+        slot.start,
+        slot.end,
+        slot.checksum,
+      ]);
     }
   });
 
   var resultSeats = Object.values(seats);
 
   // get only available seats
-  resultSeats = resultSeats.filter(seat => {
-      return !(seat.availabilities.length == 0);
+  resultSeats = resultSeats.filter((seat) => {
+    return !(seat.availabilities.length == 0);
   });
-  
+
   return resultSeats;
 }
 
 /*
-  * Function handling the interaction with libcal in order to book a seat
-  * TODO: Split up function into it's different components 
-  * (define start of booking, define end of booking, confirm booking)
-*/
+ * Function handling the interaction with libcal in order to book a seat
+ * TODO: Split up function into it's different components
+ * (define start of booking, define end of booking, confirm booking)
+ */
 async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
   let res1;
   try {
-    res1 = await fetch('https://libcal.rug.nl/spaces/availability/booking/add', {
-      method: 'POST',
-      headers: HEADERS,
-      body: new URLSearchParams({
-        'add[eid]': seat.eid.toString(),
-        'add[seat_id]': seat.seatId.toString(),
-        'add[gid]': seat.gid.toString(),
-        'add[lid]': seat.lid.toString(),
-        'add[start]': seat.availabilities[0][0],
-        'add[checksum]': seat.availabilities[0][2],
-        'lid': seat.lid.toString(), // should this be the same as seat.lid?? Not sure
-        'gid': seat.gid.toString(), // this is set to 0??? Not sure why either
-        'start': seat.startDate,
-        'end': seat.endDate
-      })
-    })
+    res1 = await fetch(
+      "https://libcal.rug.nl/spaces/availability/booking/add",
+      {
+        method: "POST",
+        headers: HEADERS,
+        body: new URLSearchParams({
+          "add[eid]": seat.eid.toString(),
+          "add[seat_id]": seat.seatId.toString(),
+          "add[gid]": seat.gid.toString(),
+          "add[lid]": seat.lid.toString(),
+          "add[start]": seat.availabilities[0][0],
+          "add[checksum]": seat.availabilities[0][2],
+          lid: seat.lid.toString(), // should this be the same as seat.lid?? Not sure
+          gid: seat.gid.toString(), // this is set to 0??? Not sure why either
+          start: seat.startDate,
+          end: seat.endDate,
+        }),
+      },
+    );
   } catch (e) {
     throw e;
   }
-  
+
   let res1JSON;
   try {
     res1JSON = await res1.json();
-  } catch (e) { throw e };
+  } catch (e) {
+    throw e;
+  }
 
-  if (!res1JSON.bookings || !Array.isArray(res1JSON.bookings) || res1JSON.bookings.length === 0) {
+  if (
+    !res1JSON.bookings ||
+    !Array.isArray(res1JSON.bookings) ||
+    res1JSON.bookings.length === 0
+  ) {
     throw Error("Unexpected response");
   }
 
   var booking = res1JSON.bookings[0];
 
-  const res2 = await fetch('https://libcal.rug.nl/spaces/availability/booking/add', {
-   method: 'POST',
-   headers: HEADERS,
-   body: new URLSearchParams({
-     'update[id]': booking.id.toString(),
-     'update[checksum]': booking.optionChecksums[booking.optionChecksums.length-1],
-     'update[end]': booking.options[booking.options.length-1], // get longest booking possible
-     'lid': booking.lid.toString(),
-     'gid': GID.toString(),
-     'start': seat.startDate,
-     'end': seat.endDate,
-     'bookings[0][id]': booking.id.toString(),
-     'bookings[0][eid]': booking.eid.toString(),
-     'bookings[0][seat_id]': booking.seat_id.toString(),
-     'bookings[0][gid]': booking.gid.toString(),
-     'bookings[0][lid]': booking.lid.toString(),
-     'bookings[0][start]': booking.start,
-     'bookings[0][end]': booking.end,
-     'bookings[0][checksum]': booking.checksum
-   })
-  })
+  const res2 = await fetch(
+    "https://libcal.rug.nl/spaces/availability/booking/add",
+    {
+      method: "POST",
+      headers: HEADERS,
+      body: new URLSearchParams({
+        "update[id]": booking.id.toString(),
+        "update[checksum]":
+          booking.optionChecksums[booking.optionChecksums.length - 1],
+        "update[end]": booking.options[booking.options.length - 1], // get longest booking possible
+        lid: booking.lid.toString(),
+        gid: GID.toString(),
+        start: seat.startDate,
+        end: seat.endDate,
+        "bookings[0][id]": booking.id.toString(),
+        "bookings[0][eid]": booking.eid.toString(),
+        "bookings[0][seat_id]": booking.seat_id.toString(),
+        "bookings[0][gid]": booking.gid.toString(),
+        "bookings[0][lid]": booking.lid.toString(),
+        "bookings[0][start]": booking.start,
+        "bookings[0][end]": booking.end,
+        "bookings[0][checksum]": booking.checksum,
+      }),
+    },
+  );
 
   let res2JSON;
   try {
     res2JSON = await res2.json();
-  } catch (e) { throw e; }
+  } catch (e) {
+    throw e;
+  }
 
   booking = res2JSON.bookings[0];
 
   function buildReturnUrl({ lid, gid, zone, capacity, date, start, end }) {
-    const params = new URLSearchParams({ lid, gid, zone, capacity, date, start, end });
+    const params = new URLSearchParams({
+      lid,
+      gid,
+      zone,
+      capacity,
+      date,
+      start,
+      end,
+    });
     return `/r/new?${params.toString()}`;
   }
 
   const bookingData = {
-    session: '1', //36797124
+    session: "1", //36797124
     fname: fname,
     lname: lname,
     email: `${email}+${mod}${EMAIL_BASE}`,
     q731: phone, // phone number
-    q749: student_number,   // student number
+    q749: student_number, // student number
     bookings: JSON.stringify([
       {
         id: booking.id,
@@ -573,8 +642,8 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
         lid: booking.lid,
         start: booking.start,
         end: booking.end,
-        checksum: booking.checksum
-      }
+        checksum: booking.checksum,
+      },
     ]),
     returnUrl: buildReturnUrl({
       lid: booking.lid,
@@ -582,11 +651,11 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
       zone: ZONE,
       capacity: CAPACITY,
       date: seat.startDate,
-      start: '',
-      end: ''
+      start: "",
+      end: "",
     }),
-    pickupHolds: '',
-    method: '13' // magic number 🌈
+    pickupHolds: "",
+    method: "13", // magic number 🌈
   };
 
   const formData = new FormData();
@@ -596,20 +665,24 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
 
   // Send the request
   let res;
-  try { res = await fetch('https://libcal.rug.nl/ajax/space/book', {
-    method: 'POST',
-    headers: {
-        'Accept': 'application/json',
-        'Origin': 'https://libcal.rug.nl',
-        'Referer': `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`
+  try {
+    res = await fetch("https://libcal.rug.nl/ajax/space/book", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Origin: "https://libcal.rug.nl",
+        Referer: `https://libcal.rug.nl/r/new/availability?lid=${LID}&zone=${ZONE}&gid=${GID}&capacity=${CAPACITY}`,
       },
-    body: formData,
-    credentials: 'include'
-  }) } catch (e) { throw e; }
+      body: formData,
+      credentials: "include",
+    });
+  } catch (e) {
+    throw e;
+  }
 
   if (!res.ok) {
-    const rsss = await res.text()
-    console.log(rsss)
+    const rsss = await res.text();
+    console.log(rsss);
     throw new Error("request rejected by server");
   }
 
@@ -617,5 +690,5 @@ async function bookSeat(seat, email, mod, fname, lname, phone, student_number) {
     seat: seat.title,
     start: booking.start,
     end: booking.end,
-  }
+  };
 }

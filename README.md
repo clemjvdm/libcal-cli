@@ -49,3 +49,6 @@ For example `libcal-cli book 3.A --day=+1` will book a seat for the one day afte
 
 You can use the `--group=<seat_count>` option to specify you'd like to book more than one seat. In this case libcal-cli will try to book so many adjacent seats.
 
+#### Contributing
+
+Format with `prettier --write libcal-cli.js`
